@@ -127,7 +127,7 @@
     let currentSort = { key: 'index', asc: true };
     let currentCategory = '';
 
-    fetch('https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json')
+    fetch('https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/1functions.json')
     .then(res => res.json())
     .then(data => {
         allData = data;
