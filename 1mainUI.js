@@ -1,4 +1,6 @@
 (function() {
+    console.log('MainUI 開始載入...');
+    
     // 防止重複加載 UI
     if (document.getElementById('myBookmarkletUI')) {
         document.getElementById('myBookmarkletUI').remove();
@@ -12,7 +14,7 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 500px;
+        width: 600px;
         max-width: 85vw;
         max-height: 85vh;
         background: rgba(255, 255, 255, 0.95);
@@ -56,6 +58,17 @@
                     margin-right: 10px;
                     transition: background-color 0.2s ease-in-out;
                 ">清除快取</button>
+                <button class="refresh-btn" style="
+                    background: #17a2b8;
+                    color: white;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    margin-right: 10px;
+                    transition: background-color 0.2s ease-in-out;
+                ">重新載入</button>
                 <button class="toggle-btn" style="
                     background: none;
                     border: none;
@@ -84,11 +97,15 @@
             flex-grow: 1;
             transition: opacity 0.3s ease-out, max-height 0.3s ease-out;
         ">
+            <div id="loadingStatus" style="text-align: center; padding: 20px; color: #666;">
+                載入功能列表中...
+            </div>
             <table id="functionTable" style="
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 5px;
                 font-size: 14px;
+                display: none;
             ">
                 <thead>
                     <tr>
@@ -126,129 +143,116 @@
             .replace(/'/g, "&#039;");
     }
 
-    // 清除快取功能
-    const clearBtn = document.querySelector('#myBookmarkletUI .clear-btn');
-    clearBtn.addEventListener('click', () => {
-        // 執行您的清除快取程式碼
-        let s = {cookies:0, localStorage:0, sessionStorage:0, serviceWorkers:0};
-        
-        try {
-            document.cookie.split(';').forEach(c => {
-                let i = c.indexOf('='), n = i > -1 ? c.substr(0, i) : c;
-                document.cookie = n.trim() + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-            });
-            s.cookies = 1;
-        } catch(e) { s.fail = (s.fail || '') + 'Cookies '; }
-        
-        try { localStorage.clear(); s.localStorage = 1; } 
-        catch(e) { s.fail = (s.fail || '') + 'localStorage '; }
-        
-        try { sessionStorage.clear(); s.sessionStorage = 1; } 
-        catch(e) { s.fail = (s.fail || '') + 'sessionStorage '; }
-        
-        // 顯示清除結果
-        const resultDiv = document.createElement('div');
-        resultDiv.style.cssText = `
-            position: fixed; top: 20px; right: 20px; padding: 15px;
-            background: ${s.fail ? '#ffebee' : '#e8f5e9'};
-            border: 1px solid ${s.fail ? '#ef9a9a' : '#a5d6a7'};
-            border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 99999; max-width: 300px; font-family: Arial;
-        `;
-        resultDiv.innerHTML = `
-            <div style="margin-bottom:10px;font-weight:bold">清理完成！${s.fail ? ' (部分失敗)' : ''}</div>
-            <div style="margin-bottom:8px">✅ 成功：${['Cookies','localStorage','sessionStorage'].filter(k=>s[k]).join(', ')}</div>
-            ${s.fail ? `<div style="color:#d32f2f;margin-bottom:8px">❌ 失敗：${s.fail}</div>` : ''}
-            <button style="padding:5px 10px;background:#2196f3;color:white;border:none;border-radius:3px;cursor:pointer;" onclick="this.parentNode.remove()">關閉</button>
-        `;
-        document.body.appendChild(resultDiv);
-        setTimeout(() => resultDiv.remove(), 5000);
-    });
-
-    clearBtn.addEventListener('mouseover', () => clearBtn.style.backgroundColor = '#c82333');
-    clearBtn.addEventListener('mouseout', () => clearBtn.style.backgroundColor = '#dc3545');
-
-    // 關閉按鈕事件
-    const closeBtn = document.querySelector('#myBookmarkletUI .close-btn');
-    closeBtn.addEventListener('click', () => {
-        uiContainer.remove();
-    });
-    closeBtn.addEventListener('mouseover', () => closeBtn.style.color = '#333');
-    closeBtn.addEventListener('mouseout', () => closeBtn.style.color = '#888');
-
-    // --- 收折功能事件 ---
-    const toggleBtn = document.querySelector('#myBookmarkletUI .toggle-btn');
-    const contentDiv = document.querySelector('#myBookmarkletUI .content');
-    let isContentVisible = true;
-
-    toggleBtn.addEventListener('click', () => {
-        if (isContentVisible) {
-            contentDiv.style.opacity = '0';
-            contentDiv.style.maxHeight = '0';
-            contentDiv.style.paddingTop = '0';
-            contentDiv.style.paddingBottom = '0';
-            uiContainer.style.maxHeight = `${uiContainer.querySelector('.header').offsetHeight}px`;
-            uiContainer.style.overflow = 'hidden';
-            uiContainer.style.resize = 'none';
-            toggleBtn.style.transform = 'rotate(180deg)';
-        } else {
-            contentDiv.style.opacity = '1';
-            contentDiv.style.maxHeight = 'unset';
-            contentDiv.style.paddingTop = '15px';
-            contentDiv.style.paddingBottom = '15px';
-            uiContainer.style.maxHeight = '85vh';
-            uiContainer.style.overflow = 'hidden';
-            uiContainer.style.resize = 'both';
-            toggleBtn.style.transform = 'rotate(0deg)';
-        }
-        isContentVisible = !isContentVisible;
-    });
-
-    toggleBtn.addEventListener('mouseover', () => toggleBtn.style.color = '#333');
-    toggleBtn.addEventListener('mouseout', () => toggleBtn.style.color = '#888');
-
+    // 全域變數
     const functionTableBody = document.querySelector('#functionTable tbody');
-    let originalData = []; // 儲存原始資料
+    const functionTable = document.getElementById('functionTable');
+    const loadingStatus = document.getElementById('loadingStatus');
+    let originalData = [];
     let currentSortColumn = null;
     let currentSortDirection = 'asc';
 
-    // 排序功能
-    function sortTable(column) {
-        if (currentSortColumn === column) {
-            currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            currentSortColumn = column;
-            currentSortDirection = 'asc';
+    // 載入資料函數
+    function loadFunctionData() {
+        const timestamp = Date.now();
+        const jsonUrls = [
+            `https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json?v=${timestamp}`,
+            `https://raw.githubusercontent.com/k791031k/UAT_TOOL_R/main/functions.json?v=${timestamp}`,
+            // 備用測試資料
+            'application/json,' + encodeURIComponent(JSON.stringify([
+                {
+                    "id": "測試功能1",
+                    "description": "這是測試功能1",
+                    "category": "測試",
+                    "type": "action",
+                    "action_script": "javascript:alert('測試功能1執行成功！');"
+                },
+                {
+                    "id": "測試功能2",
+                    "description": "這是測試功能2",
+                    "category": "測試",
+                    "type": "utility",
+                    "action_script": "javascript:alert('測試功能2執行成功！');"
+                }
+            ]))
+        ];
+
+        loadingStatus.innerHTML = '載入功能列表中...';
+        console.log('開始載入功能資料...');
+
+        // 嘗試多個 URL
+        async function tryLoadData() {
+            for (let i = 0; i < jsonUrls.length; i++) {
+                const url = jsonUrls[i];
+                console.log(`嘗試載入 URL ${i + 1}:`, url);
+                
+                try {
+                    loadingStatus.innerHTML = `載入中... (嘗試 ${i + 1}/${jsonUrls.length})`;
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', response.headers);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('成功載入資料:', data);
+
+                    if (!Array.isArray(data)) {
+                        throw new Error('資料格式錯誤：不是陣列格式');
+                    }
+
+                    if (data.length === 0) {
+                        throw new Error('資料為空');
+                    }
+
+                    // 成功載入資料
+                    originalData = data.map((item, index) => ({
+                        ...item,
+                        originalIndex: index + 1
+                    }));
+
+                    loadingStatus.style.display = 'none';
+                    functionTable.style.display = 'table';
+                    renderTable(originalData);
+                    bindSortEvents();
+                    
+                    console.log('資料載入完成，共', originalData.length, '筆');
+                    return; // 成功載入，退出函數
+
+                } catch (error) {
+                    console.error(`URL ${i + 1} 載入失敗:`, error);
+                    
+                    if (i === jsonUrls.length - 1) {
+                        // 所有 URL 都失敗了
+                        loadingStatus.innerHTML = `
+                            <div style="color: red; text-align: center;">
+                                <div style="font-weight: bold; margin-bottom: 10px;">載入功能資料失敗！</div>
+                                <div style="margin-bottom: 10px;">已嘗試 ${jsonUrls.length} 個資料源</div>
+                                <div style="font-size: 12px; color: #666;">
+                                    最後錯誤：${error.message}
+                                </div>
+                                <button onclick="location.reload()" style="
+                                    margin-top: 10px; padding: 5px 10px; 
+                                    background: #007bff; color: white; 
+                                    border: none; border-radius: 3px; cursor: pointer;
+                                ">重新載入頁面</button>
+                            </div>
+                        `;
+                    }
+                }
+            }
         }
 
-        // 更新排序指示器
-        document.querySelectorAll('.sort-indicator').forEach(indicator => {
-            indicator.textContent = '↕';
-        });
-        
-        const currentIndicator = document.querySelector(`[data-column="${column}"] .sort-indicator`);
-        currentIndicator.textContent = currentSortDirection === 'asc' ? '↑' : '↓';
-
-        // 排序資料
-        const sortedData = [...originalData].sort((a, b) => {
-            let aVal = column === 'index' ? a.originalIndex : a[column] || '';
-            let bVal = column === 'index' ? b.originalIndex : b[column] || '';
-            
-            if (column === 'index') {
-                aVal = parseInt(aVal);
-                bVal = parseInt(bVal);
-            } else {
-                aVal = String(aVal).toLowerCase();
-                bVal = String(bVal).toLowerCase();
-            }
-
-            if (aVal < bVal) return currentSortDirection === 'asc' ? -1 : 1;
-            if (aVal > bVal) return currentSortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-        // 重新渲染表格
-        renderTable(sortedData);
+        tryLoadData();
     }
 
     // 渲染表格
@@ -288,7 +292,6 @@
             `;
         });
 
-        // 重新綁定按鈕事件
         bindButtonEvents();
     }
 
@@ -323,15 +326,6 @@
                 btn.addEventListener('mouseout', () => {
                     btn.style.backgroundColor = bgColorNormal;
                     btn.style.transform = 'translateY(0)';
-                });
-                btn.addEventListener('mousedown', () => {
-                    btn.style.backgroundColor = bgColorActive;
-                    btn.style.transform = 'translateY(0)';
-                    btn.style.boxShadow = 'inset 0 2px 5px rgba(0,0,0,0.2)';
-                });
-                btn.addEventListener('mouseup', () => {
-                    btn.style.backgroundColor = bgColorHover;
-                    btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
                 });
             };
             applyButtonStyles(button, buttonType);
@@ -370,61 +364,112 @@
         });
     }
 
+    // 排序功能
+    function sortTable(column) {
+        if (currentSortColumn === column) {
+            currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortColumn = column;
+            currentSortDirection = 'asc';
+        }
+
+        document.querySelectorAll('.sort-indicator').forEach(indicator => {
+            indicator.textContent = '↕';
+        });
+        
+        const currentIndicator = document.querySelector(`[data-column="${column}"] .sort-indicator`);
+        if (currentIndicator) {
+            currentIndicator.textContent = currentSortDirection === 'asc' ? '↑' : '↓';
+        }
+
+        const sortedData = [...originalData].sort((a, b) => {
+            let aVal = column === 'index' ? a.originalIndex : a[column] || '';
+            let bVal = column === 'index' ? b.originalIndex : b[column] || '';
+            
+            if (column === 'index') {
+                aVal = parseInt(aVal);
+                bVal = parseInt(bVal);
+            } else {
+                aVal = String(aVal).toLowerCase();
+                bVal = String(bVal).toLowerCase();
+            }
+
+            if (aVal < bVal) return currentSortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        renderTable(sortedData);
+    }
+
     // 綁定排序事件
-    document.querySelectorAll('.sortable').forEach(header => {
-        header.addEventListener('click', () => {
-            sortTable(header.dataset.column);
+    function bindSortEvents() {
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                sortTable(header.dataset.column);
+            });
+            header.addEventListener('mouseover', () => {
+                header.style.backgroundColor = '#e8e8e8';
+            });
+            header.addEventListener('mouseout', () => {
+                header.style.backgroundColor = '#f2f2f2';
+            });
         });
-        header.addEventListener('mouseover', () => {
-            header.style.backgroundColor = '#e8e8e8';
-        });
-        header.addEventListener('mouseout', () => {
-            header.style.backgroundColor = '#f2f2f2';
-        });
+    }
+
+    // 按鈕事件綁定
+    const closeBtn = document.querySelector('#myBookmarkletUI .close-btn');
+    closeBtn.addEventListener('click', () => uiContainer.remove());
+
+    const refreshBtn = document.querySelector('#myBookmarkletUI .refresh-btn');
+    refreshBtn.addEventListener('click', () => {
+        loadingStatus.style.display = 'block';
+        functionTable.style.display = 'none';
+        loadFunctionData();
     });
 
-    // 獲取功能數據（添加版本參數避免快取）
-    const timestamp = Date.now();
-    fetch(`https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functionss.json?v=${timestamp}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+    const clearBtn = document.querySelector('#myBookmarkletUI .clear-btn');
+    clearBtn.addEventListener('click', () => {
+        // 清除快取功能
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => {
+                        caches.delete(name);
+                    });
+                });
             }
-            return response.json();
-        })
-        .then(data => {
-            if (!Array.isArray(data) || data.length === 0) {
-                functionTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; font-size: 14px;">目前沒有可用的功能。</td></tr>`;
-                return;
-            }
+            alert('快取清除完成！');
+        } catch (e) {
+            alert('清除快取時發生錯誤：' + e.message);
+        }
+    });
 
-            // 儲存原始資料並添加原始索引
-            originalData = data.map((item, index) => ({
-                ...item,
-                originalIndex: index + 1
-            }));
+    // 收折功能
+    const toggleBtn = document.querySelector('#myBookmarkletUI .toggle-btn');
+    const contentDiv = document.querySelector('#myBookmarkletUI .content');
+    let isContentVisible = true;
 
-            // 初始渲染
-            renderTable(originalData);
-        })
-        .catch(error => {
-            console.error('載入功能資料失敗:', error);
-            functionTableBody.innerHTML = `
-                <tr><td colspan="5" style="text-align: center; padding: 20px; font-size: 14px; color: red;">
-                    載入功能資料失敗！<br>
-                    請檢查 <code style="background-color:#ffebee; padding: 2px 4px; border-radius: 3px;">functionss.json</code> 路徑或網路連線。<br>
-                    錯誤訊息: ${error.message}
-                </td></tr>
-            `;
-        });
+    toggleBtn.addEventListener('click', () => {
+        if (isContentVisible) {
+            contentDiv.style.display = 'none';
+            toggleBtn.style.transform = 'rotate(180deg)';
+        } else {
+            contentDiv.style.display = 'block';
+            toggleBtn.style.transform = 'rotate(0deg)';
+        }
+        isContentVisible = !isContentVisible;
+    });
 
-    // --- 拖曳功能實現 ---
+    // 拖曳功能
     const header = uiContainer.querySelector('.header');
     let isDragging = false;
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        if (e.target.tagName === 'BUTTON') return; // 避免拖曳按鈕
+        if (e.target.tagName === 'BUTTON') return;
         isDragging = true;
         offsetX = e.clientX - uiContainer.getBoundingClientRect().left;
         offsetY = e.clientY - uiContainer.getBoundingClientRect().top;
@@ -433,13 +478,10 @@
 
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-
         let newX = e.clientX - offsetX;
         let newY = e.clientY - offsetY;
-
         newX = Math.max(0, Math.min(newX, window.innerWidth - uiContainer.offsetWidth));
         newY = Math.max(0, Math.min(newY, window.innerHeight - uiContainer.offsetHeight));
-
         uiContainer.style.left = `${newX}px`;
         uiContainer.style.top = `${newY}px`;
         uiContainer.style.transform = 'none';
@@ -450,4 +492,8 @@
         header.style.cursor = 'grab';
     });
 
+    // 開始載入資料
+    loadFunctionData();
+
+    console.log('MainUI 載入完成');
 })();
