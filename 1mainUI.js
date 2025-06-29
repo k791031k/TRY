@@ -11,24 +11,24 @@
         position: fixed;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%); /* 始終居中對齊 */
-        width: 450px; /* 版面預設寬度 */
-        max-width: 85vw; /* 最大寬度 */
-        max-height: 85vh; /* 最大高度 */
-        background: rgba(255, 255, 255, 0.95); /* 稍微降低透明度，更融入頁面 */
-        border: 1px solid #d0d0d0; /* 邊框顏色稍微加深 */
-        border-radius: 10px; /* 圓角稍微小一點 */
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 陰影更柔和，減少突出感 */
-        z-index: 99999; /* 確保 UI 在最頂層 */
+        transform: translate(-50%, -50%);
+        width: 450px;
+        max-width: 85vw;
+        max-height: 85vh;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #d0d0d0;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        z-index: 99999;
         font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
         color: #333;
         display: flex;
         flex-direction: column;
-        overflow: hidden; /* 隱藏溢出內容，保持圓角 */
-        resize: both; /* 允許調整大小 */
-        min-width: 500px; /* 更新為最小寬度 500px */
-        min-height: 60px; /* 更新為最小高度 60px */
-        transition: height 0.3s ease-out, max-height 0.3s ease-out; /* 高度變化增加過渡效果 */
+        overflow: hidden;
+        resize: both;
+        min-width: 500px;
+        min-height: 60px;
+        transition: height 0.3s ease-out, max-height 0.3s ease-out;
     `;
 
     uiContainer.innerHTML = `
@@ -37,9 +37,9 @@
             justify-content: space-between;
             align-items: center;
             padding: 8px 20px;
-            background-color: #f5f5f5; /* 標題背景顏色稍微調整 */
-            border-bottom: 1px solid #e5e5e5; /* 標題底部邊框顏色調整 */
-            border-top-left-radius: 9px; /* 配合主容器圓角 */
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #e5e5e5;
+            border-top-left-radius: 9px;
             border-top-right-radius: 9px;
             cursor: grab;
         ">
@@ -95,6 +95,17 @@
 
     document.body.appendChild(uiContainer);
 
+    // 定義 escapeHtml 函數
+    function escapeHtml(unsafe) {
+        if (unsafe === undefined || unsafe === null) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     // 關閉按鈕事件
     const closeBtn = document.querySelector('#myBookmarkletUI .close-btn');
     closeBtn.addEventListener('click', () => {
@@ -106,7 +117,7 @@
     // --- 收折功能事件 ---
     const toggleBtn = document.querySelector('#myBookmarkletUI .toggle-btn');
     const contentDiv = document.querySelector('#myBookmarkletUI .content');
-    let isContentVisible = true; // 追蹤內容是否可見，預設為 true (展開)
+    let isContentVisible = true;
 
     toggleBtn.addEventListener('click', () => {
         if (isContentVisible) {
@@ -136,20 +147,11 @@
     toggleBtn.addEventListener('mouseover', () => toggleBtn.style.color = '#333');
     toggleBtn.addEventListener('mouseout', () => toggleBtn.style.color = '#888');
 
-    // 定義 escapeHtml 函數（移到這裡，在使用前定義）
-    function escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
     const functionTableBody = document.querySelector('#functionTable tbody');
 
-    // 獲取功能數據
-    fetch('https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json')
+    // 獲取功能數據（添加版本參數避免快取）
+    const timestamp = Date.now();
+    fetch(`https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json?v=${timestamp}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
@@ -157,7 +159,7 @@
             return response.json();
         })
         .then(data => {
-            if (data.length === 0) {
+            if (!Array.isArray(data) || data.length === 0) {
                 functionTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; font-size: 14px;">目前沒有可用的功能。</td></tr>`;
                 return;
             }
@@ -246,44 +248,50 @@
                 };
                 applyButtonStyles(button, buttonType);
 
-                button.addEventListener('click', (event) => {
+                button.addEventListener('click', async (event) => {
                     const scriptToExecute = event.target.dataset.script;
-                    if (scriptToExecute.startsWith('javascript:')) {
-                        const jsCode = scriptToExecute.substring(11);
-                        try {
+                    
+                    try {
+                        if (scriptToExecute.startsWith('javascript:')) {
+                            // 執行內嵌 JavaScript
+                            const jsCode = scriptToExecute.substring(11);
                             (function() {
                                 eval(jsCode);
                             })();
-                        } catch (e) {
-                            console.error("執行功能腳本時發生錯誤:", e);
-                            alert("執行功能腳本時發生錯誤，請檢查開發者工具控制台。");
+                        } else if (scriptToExecute.startsWith('external:')) {
+                            // 載入外部腳本
+                            const scriptUrl = scriptToExecute.substring(9);
+                            const externalScript = document.createElement('script');
+                            externalScript.src = scriptUrl + '?v=' + Date.now(); // 避免快取
+                            externalScript.onload = () => {
+                                console.log('外部腳本載入成功:', scriptUrl);
+                            };
+                            externalScript.onerror = () => {
+                                console.error('外部腳本載入失敗:', scriptUrl);
+                                alert('載入外部腳本失敗，請檢查網路連線');
+                            };
+                            document.body.appendChild(externalScript);
+                        } else {
+                            throw new Error('不支援的腳本格式');
                         }
-                    } else {
-                        console.error("無效的 action_script 格式:", scriptToExecute);
-                        alert("無效的功能腳本格式。");
+                    } catch (e) {
+                        console.error("執行功能腳本時發生錯誤:", e);
+                        alert("執行功能腳本時發生錯誤，請檢查開發者工具控制台。");
                     }
+                    
                     uiContainer.remove();
                 });
             });
         })
         .catch(error => {
             console.error('載入功能資料失敗:', error);
-            uiContainer.querySelector('.content').innerHTML = `
-                <p style="color: red; text-align: center; margin-top: 20px; font-size: 14px;">
+            functionTableBody.innerHTML = `
+                <tr><td colspan="4" style="text-align: center; padding: 20px; font-size: 14px; color: red;">
                     載入功能資料失敗！<br>
                     請檢查 <code style="background-color:#ffebeb; padding: 2px 4px; border-radius: 3px;">functions.json</code> 路徑或網路連線。<br>
                     錯誤訊息: ${error.message}
-                </p>
+                </td></tr>
             `;
-            contentDiv.style.opacity = '1';
-            contentDiv.style.maxHeight = 'unset';
-            contentDiv.style.paddingTop = '15px';
-            contentDiv.style.paddingBottom = '15px';
-            uiContainer.style.maxHeight = '85vh';
-            uiContainer.style.overflow = 'hidden';
-            uiContainer.style.resize = 'both';
-            toggleBtn.style.transform = 'rotate(0deg)';
-            isContentVisible = true;
         });
 
     // --- 拖曳功能實現 ---
