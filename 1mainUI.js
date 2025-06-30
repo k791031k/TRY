@@ -531,8 +531,8 @@
     function loadFunctionData() {
         const timestamp = Date.now();
         const jsonUrls = [
-            `https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json?v=${timestamp}`,
-            `https://raw.githubusercontent.com/k791031k/UAT_TOOL_R/main/functions.json?v=${timestamp}`
+            `https://cdn.jsdelivr.net/gh/k791031k/UAT/functions.js?v=${timestamp}`,
+            `https://raw.githubusercontent.com/k791031k/UAT/main/functions.js?v=${timestamp}`
         ];
 
         loadingStatus.innerHTML = `
