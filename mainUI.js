@@ -140,8 +140,8 @@
 
     const functionTableBody = document.querySelector('#functionTable tbody');
 
-    // 獲取功能數據
-    fetch('https://cdn.jsdelivr.net/gh/k791031k/UAT_TOOL_R/functions.json')
+    // 獲取功能數據@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    fetch('https://raw.githubusercontent.com/k791031k/UAT/refs/heads/main/1functions.json')
     .then(response => {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
